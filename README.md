@@ -4,7 +4,7 @@ MCP server for precise time zone conversion. It exposes one tool:
 
 - `convert_time`: converts a specified timestamp from a source timezone, returning configured default zones plus any requested additional zones.
 
-Configured or requested zones that are the same as the source timezone are omitted. U.S. Eastern results use `EST` or `EDT` according to the specified instant.
+Configured or requested zones that produce the same local clock time and UTC offset as the source at the specified instant are omitted. This also removes redundant results for fixed-offset inputs and equivalent IANA names. Distinct zones with different rules can therefore be omitted when they happen to agree at that instant. U.S. Eastern results use `EST` or `EDT` according to the specified instant.
 
 ## Install
 
@@ -25,6 +25,8 @@ Set `TIMEZONE_MCP_ALWAYS_TIMEZONES` to a comma-separated list. This is the simpl
 ```bash
 TIMEZONE_MCP_ALWAYS_TIMEZONES="China,Eastern"
 ```
+
+This variable takes precedence over `TIMEZONE_MCP_CONFIG`. Use the JSON value `[]` to configure no default output zones; an empty value is rejected as a likely configuration error.
 
 Alternatively, set `TIMEZONE_MCP_CONFIG` to a JSON file:
 

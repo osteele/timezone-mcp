@@ -1,28 +1,17 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import cast
 
 import pytest
 
 from timezone_mcp.conversion import convert_time
 
-JsonObject = dict[str, object]
-
-
-def as_object(value: object) -> JsonObject:
-    return cast(JsonObject, value)
-
-
-def as_objects(value: object) -> list[JsonObject]:
-    return cast(list[JsonObject], value)
-
 
 def test_converts_china_to_edt_in_july() -> None:
     result = convert_time("2026-07-16 09:00", source_timezone="China")
-    conversions = as_objects(result["conversions"])
+    conversions = result["conversions"]
     eastern = conversions[0]
-    date_boundary = as_object(result["date_boundary"])
+    date_boundary = result["date_boundary"]
 
     assert [item["timezone"] for item in conversions] == ["America/New_York"]
     assert eastern["datetime"] == "2026-07-15T21:00:00-04:00"
@@ -32,7 +21,7 @@ def test_converts_china_to_edt_in_july() -> None:
 
 def test_converts_china_to_est_in_january() -> None:
     result = convert_time("2026-01-16 09:00", source_timezone="Asia/Shanghai")
-    conversions = as_objects(result["conversions"])
+    conversions = result["conversions"]
     eastern = conversions[0]
 
     assert [item["timezone"] for item in conversions] == ["America/New_York"]
@@ -42,10 +31,10 @@ def test_converts_china_to_est_in_january() -> None:
 
 def test_converts_aoe_to_china_next_day() -> None:
     result = convert_time("2026-07-16 23:30", source_timezone="AoE")
-    conversions = as_objects(result["conversions"])
+    conversions = result["conversions"]
     china = conversions[0]
     eastern = conversions[1]
-    date_boundary = as_object(result["date_boundary"])
+    date_boundary = result["date_boundary"]
 
     assert china["datetime"] == "2026-07-17T19:30:00+08:00"
     assert eastern["abbreviation"] == "EDT"
@@ -58,7 +47,7 @@ def test_includes_requested_extra_timezones_without_duplicate_core_zones() -> No
         output_timezones=["UTC", "eastern", "Pacific"],
     )
 
-    conversions = as_objects(result["conversions"])
+    conversions = result["conversions"]
     zones = [item["timezone"] for item in conversions]
 
     assert zones == ["Asia/Shanghai", "UTC", "America/Los_Angeles"]
@@ -68,9 +57,25 @@ def test_includes_requested_extra_timezones_without_duplicate_core_zones() -> No
 
 def test_omits_equivalent_iana_source_timezone() -> None:
     result = convert_time("2026-07-16 09:00", source_timezone="US/Eastern")
-    conversions = as_objects(result["conversions"])
+    conversions = result["conversions"]
 
     assert [item["timezone"] for item in conversions] == ["Asia/Shanghai"]
+
+
+def test_omits_distinct_zone_with_same_local_result_at_instant() -> None:
+    summer = convert_time(
+        "2026-07-16 09:00",
+        source_timezone="America/Phoenix",
+        output_timezones=["America/Los_Angeles"],
+    )
+    winter = convert_time(
+        "2026-01-16 09:00",
+        source_timezone="America/Phoenix",
+        output_timezones=["America/Los_Angeles"],
+    )
+
+    assert "America/Los_Angeles" not in [item["timezone"] for item in summer["conversions"]]
+    assert "America/Los_Angeles" in [item["timezone"] for item in winter["conversions"]]
 
 
 def test_configures_default_timezones(tmp_path: Path) -> None:
@@ -82,7 +87,7 @@ def test_configures_default_timezones(tmp_path: Path) -> None:
         source_timezone="China",
         config_path=str(config_path),
     )
-    conversions = as_objects(result["conversions"])
+    conversions = result["conversions"]
 
     assert [item["timezone"] for item in conversions] == ["UTC"]
     assert conversions[0]["datetime"] == "2026-07-16T01:00:00+00:00"
@@ -92,7 +97,7 @@ def test_configures_default_timezones_from_environment(monkeypatch: pytest.Monke
     monkeypatch.setenv("TIMEZONE_MCP_ALWAYS_TIMEZONES", "UTC,Pacific")
 
     result = convert_time("2026-07-16 09:00", source_timezone="China")
-    conversions = as_objects(result["conversions"])
+    conversions = result["conversions"]
 
     assert [item["timezone"] for item in conversions] == ["UTC", "America/Los_Angeles"]
 
@@ -110,3 +115,21 @@ def test_rejects_date_only_time() -> None:
 def test_rejects_nonexistent_local_time() -> None:
     with pytest.raises(ValueError, match="not a valid local time"):
         convert_time("2026-03-08 02:30", source_timezone="America/New_York")
+
+
+def test_fold_selects_each_occurrence_of_ambiguous_local_time() -> None:
+    first = convert_time(
+        "2026-11-01 01:30",
+        source_timezone="America/New_York",
+        fold=0,
+        output_timezones=["UTC"],
+    )
+    second = convert_time(
+        "2026-11-01 01:30",
+        source_timezone="America/New_York",
+        fold=1,
+        output_timezones=["UTC"],
+    )
+
+    assert first["utc"]["datetime"] == "2026-11-01T05:30:00+00:00"
+    assert second["utc"]["datetime"] == "2026-11-01T06:30:00+00:00"

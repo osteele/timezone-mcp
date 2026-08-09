@@ -20,7 +20,7 @@ class TimezoneConfig:
 
 def load_config(config_path: str | None = None) -> TimezoneConfig:
     env_timezones = os.environ.get(ALWAYS_TIMEZONES_ENV_VAR)
-    if env_timezones:
+    if env_timezones is not None:
         return TimezoneConfig(always_timezones=_parse_timezone_list(env_timezones))
 
     path = config_path or os.environ.get(CONFIG_ENV_VAR)
@@ -41,13 +41,19 @@ def _parse_timezone_list(value: str) -> list[str]:
         raise ValueError(f"{ALWAYS_TIMEZONES_ENV_VAR} cannot be empty")
 
     if stripped.startswith("["):
-        parsed = cast(object, json.loads(stripped))
+        try:
+            parsed = cast(object, json.loads(stripped))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"{ALWAYS_TIMEZONES_ENV_VAR} is not valid JSON") from exc
         return _string_list(
             parsed,
             error=f"{ALWAYS_TIMEZONES_ENV_VAR} must be a JSON array of strings",
         )
 
-    return [item.strip() for item in stripped.split(",") if item.strip()]
+    result = [item.strip() for item in stripped.split(",") if item.strip()]
+    if not result:
+        raise ValueError(f"{ALWAYS_TIMEZONES_ENV_VAR} cannot be empty")
+    return result
 
 
 def _load_json(path: Path) -> dict[str, object]:

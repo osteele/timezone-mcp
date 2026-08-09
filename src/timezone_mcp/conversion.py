@@ -7,6 +7,8 @@ from datetime import UTC, datetime, timedelta, timezone, tzinfo
 from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from typing_extensions import TypedDict
+
 from timezone_mcp.config import load_config
 
 UTC_MINUS_12 = timezone(timedelta(hours=-12), name="AoE")
@@ -48,13 +50,47 @@ class ResolvedZone:
     tz: tzinfo
 
 
+class FormattedDateTime(TypedDict):
+    datetime: str
+    date: str
+    time: str
+    weekday: str
+    timezone: str
+    abbreviation: str | None
+    utc_offset: str
+
+
+class Conversion(FormattedDateTime):
+    requested_timezone: str
+
+
+class ConversionInput(TypedDict):
+    time: str
+    source_timezone: str | None
+    fold: Literal[0, 1]
+    resolved: FormattedDateTime
+
+
+class DateBoundary(TypedDict):
+    source_date: str
+    different_dates: list[str]
+
+
+class ConversionResult(TypedDict):
+    input: ConversionInput
+    utc: FormattedDateTime
+    configured_timezones: list[str]
+    conversions: list[Conversion]
+    date_boundary: DateBoundary
+
+
 def convert_time(
     time: str,
     source_timezone: str | None = None,
     output_timezones: list[str] | None = None,
     fold: Literal[0, 1] = 0,
     config_path: str | None = None,
-) -> dict[str, object]:
+) -> ConversionResult:
     """Convert a timestamp to configured and requested timezones."""
     parsed = _parse_datetime(time)
     source = _resolve_source(parsed, source_timezone, fold)
@@ -180,13 +216,21 @@ def _validate_local_time(candidate: datetime, parsed: datetime, source_timezone:
         )
 
 
-def _format_conversion(local: datetime, zone_key: str) -> dict[str, object]:
-    return _format_datetime(local) | {
+def _format_conversion(local: datetime, zone_key: str) -> Conversion:
+    formatted = _format_datetime(local)
+    return {
+        "datetime": formatted["datetime"],
+        "date": formatted["date"],
+        "time": formatted["time"],
+        "weekday": formatted["weekday"],
+        "timezone": formatted["timezone"],
+        "abbreviation": formatted["abbreviation"],
+        "utc_offset": formatted["utc_offset"],
         "requested_timezone": zone_key,
     }
 
 
-def _format_datetime(value: datetime) -> dict[str, object]:
+def _format_datetime(value: datetime) -> FormattedDateTime:
     offset = value.utcoffset()
     if offset is None:
         raise ValueError("datetime must be timezone-aware")

@@ -6,6 +6,7 @@ from typing import Literal
 
 from mcp.server.fastmcp import FastMCP
 
+from timezone_mcp.conversion import ConversionResult
 from timezone_mcp.conversion import convert_time as convert_time_impl
 
 mcp = FastMCP("Time Zone Converter")
@@ -24,7 +25,7 @@ def convert_time(
     source_timezone: str | None = None,
     output_timezones: list[str] | None = None,
     fold: Literal[0, 1] = 0,
-) -> dict[str, object]:
+) -> ConversionResult:
     return convert_time_impl(
         time=time,
         source_timezone=source_timezone,
