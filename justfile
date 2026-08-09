@@ -8,7 +8,7 @@ lint:
     uv run ruff check .
 
 typecheck:
-    uv run pyright
+    uv run ty check
 
 test:
     uv run pytest
