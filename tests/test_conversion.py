@@ -66,6 +66,13 @@ def test_includes_requested_extra_timezones_without_duplicate_core_zones() -> No
     assert conversions[2]["abbreviation"] == "PDT"
 
 
+def test_omits_equivalent_iana_source_timezone() -> None:
+    result = convert_time("2026-07-16 09:00", source_timezone="US/Eastern")
+    conversions = as_objects(result["conversions"])
+
+    assert [item["timezone"] for item in conversions] == ["Asia/Shanghai"]
+
+
 def test_configures_default_timezones(tmp_path: Path) -> None:
     config_path = tmp_path / "timezone-mcp.json"
     config_path.write_text('{"always_timezones": ["UTC"]}', encoding="utf-8")

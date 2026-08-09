@@ -6,6 +6,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 DEFAULT_ALWAYS_TIMEZONES = ["Asia/Shanghai", "America/New_York"]
 CONFIG_ENV_VAR = "TIMEZONE_MCP_CONFIG"
@@ -27,13 +28,11 @@ def load_config(config_path: str | None = None) -> TimezoneConfig:
         return TimezoneConfig(always_timezones=DEFAULT_ALWAYS_TIMEZONES.copy())
 
     data = _load_json(Path(path).expanduser())
-    always_timezones = data.get("always_timezones", DEFAULT_ALWAYS_TIMEZONES)
-    if not isinstance(always_timezones, list) or not all(
-        isinstance(item, str) for item in always_timezones
-    ):
-        raise ValueError("always_timezones must be a list of timezone names")
-
-    return TimezoneConfig(always_timezones=always_timezones.copy())
+    always_timezones = _string_list(
+        data.get("always_timezones", DEFAULT_ALWAYS_TIMEZONES),
+        error="always_timezones must be a list of timezone names",
+    )
+    return TimezoneConfig(always_timezones=always_timezones)
 
 
 def _parse_timezone_list(value: str) -> list[str]:
@@ -42,10 +41,11 @@ def _parse_timezone_list(value: str) -> list[str]:
         raise ValueError(f"{ALWAYS_TIMEZONES_ENV_VAR} cannot be empty")
 
     if stripped.startswith("["):
-        parsed = json.loads(stripped)
-        if not isinstance(parsed, list) or not all(isinstance(item, str) for item in parsed):
-            raise ValueError(f"{ALWAYS_TIMEZONES_ENV_VAR} must be a JSON array of strings")
-        return parsed.copy()
+        parsed = cast(object, json.loads(stripped))
+        return _string_list(
+            parsed,
+            error=f"{ALWAYS_TIMEZONES_ENV_VAR} must be a JSON array of strings",
+        )
 
     return [item.strip() for item in stripped.split(",") if item.strip()]
 
@@ -53,7 +53,7 @@ def _parse_timezone_list(value: str) -> list[str]:
 def _load_json(path: Path) -> dict[str, object]:
     try:
         with path.open(encoding="utf-8") as file:
-            data = json.load(file)
+            data = cast(object, json.load(file))
     except FileNotFoundError as exc:
         raise ValueError(f"timezone-mcp config file does not exist: {path}") from exc
     except json.JSONDecodeError as exc:
@@ -62,4 +62,16 @@ def _load_json(path: Path) -> dict[str, object]:
     if not isinstance(data, dict):
         raise ValueError("timezone-mcp config must be a JSON object")
 
-    return data
+    return cast(dict[str, object], data)
+
+
+def _string_list(value: object, *, error: str) -> list[str]:
+    if not isinstance(value, list):
+        raise ValueError(error)
+
+    result: list[str] = []
+    for item in cast(list[object], value):
+        if not isinstance(item, str):
+            raise ValueError(error)
+        result.append(item)
+    return result

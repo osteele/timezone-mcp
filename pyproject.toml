@@ -8,6 +8,7 @@ license = { text = "MIT" }
 authors = [{ name = "Oliver Steele", email = "steele@osteele.com" }]
 dependencies = [
     "mcp>=1.7.1",
+    "tzdata>=2026.3",
 ]
 
 [project.scripts]

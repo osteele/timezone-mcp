@@ -62,12 +62,15 @@ def convert_time(
     config = load_config(config_path)
 
     utc_time = source.astimezone(UTC)
-    source_key = _source_zone_key(source, source_timezone)
-    zone_keys = _dedupe_without_source(
-        [*config.always_timezones, *requested_zones],
-        source_key=source_key,
-    )
-    conversions = [_format_conversion(utc_time, zone_key) for zone_key in zone_keys]
+    zone_keys = _dedupe([*config.always_timezones, *requested_zones])
+    local_times = [
+        (zone_key, utc_time.astimezone(_resolve_zone(zone_key).tz)) for zone_key in zone_keys
+    ]
+    conversions = [
+        _format_conversion(local, zone_key)
+        for zone_key, local in local_times
+        if not _same_local_time(local, source)
+    ]
 
     return {
         "input": {
@@ -161,17 +164,11 @@ def _dedupe(values: list[str]) -> list[str]:
     return result
 
 
-def _dedupe_without_source(values: list[str], *, source_key: str | None) -> list[str]:
-    return [key for key in _dedupe(values) if key != source_key]
-
-
-def _source_zone_key(source: datetime, source_timezone: str | None) -> str | None:
-    if source_timezone is not None:
-        return _normalize_zone_key(source_timezone)
-    key = _timezone_key(source.tzinfo)
-    if key not in {"unknown", None}:
-        return key
-    return None
+def _same_local_time(left: datetime, right: datetime) -> bool:
+    return (
+        left.replace(tzinfo=None) == right.replace(tzinfo=None)
+        and left.utcoffset() == right.utcoffset()
+    )
 
 
 def _validate_local_time(candidate: datetime, parsed: datetime, source_timezone: str) -> None:
@@ -183,9 +180,7 @@ def _validate_local_time(candidate: datetime, parsed: datetime, source_timezone:
         )
 
 
-def _format_conversion(utc_time: datetime, zone_key: str) -> dict[str, object]:
-    zone = _resolve_zone(zone_key)
-    local = utc_time.astimezone(zone.tz)
+def _format_conversion(local: datetime, zone_key: str) -> dict[str, object]:
     return _format_datetime(local) | {
         "requested_timezone": zone_key,
     }
